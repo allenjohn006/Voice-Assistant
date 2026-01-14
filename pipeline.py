@@ -1,6 +1,6 @@
 """
 🟩 PHASE 3 — UNIFIED VOICE ASSISTANT PIPELINE
-Wake → Record → Transcribe (All in One)
+Wake → Record → Transcribe → Emotion (All in One)
 """
 
 import sounddevice as sd
@@ -12,6 +12,7 @@ import pvporcupine
 import struct
 import whisper
 import soundfile as sf
+from emotion_detector_improved import ImprovedEmotionDetector
 
 # Configuration
 ACCESS_KEY = "f+4dR9DLMc4/+1zjLleNyCHMg8WdqfFHE9QgRz9LJmN44gPUIbRItA=="
@@ -130,6 +131,11 @@ def main():
     whisper_model = whisper.load_model("base")
     print("✅ Whisper loaded")
     
+    # Initialize Emotion Detector
+    print("🔧 Initializing Emotion Detector...")
+    emotion_detector = ImprovedEmotionDetector(confidence_threshold=0.60)
+    print("✅ Emotion detector loaded\n")
+    
     # Start audio stream
     print("\n📍 Starting audio stream...")
     audio_stream = sd.InputStream(
@@ -150,15 +156,29 @@ def main():
                 audio_data = record_audio()
                 
                 # Save audio file
-                save_audio(audio_data)
+                audio_file = save_audio(audio_data)
                 
                 # Transcribe
                 text = transcribe_audio(audio_data, whisper_model)
+                
+                # Detect emotion
+                emotion_result = emotion_detector.predict(audio_file)
                 
                 # Print result
                 print("\n" + "=" * 60)
                 print("📝 TRANSCRIPTION:")
                 print(f"   {text}")
+                print(f"\n💭 EMOTION:")
+                print(f"   {emotion_result['emotion'].upper()} ({emotion_result['confidence']*100:.1f}%)")
+                print(f"   {emotion_result['confidence_status']}")
+                
+                # Show top 3 if low confidence
+                if not emotion_result['is_confident']:
+                    print(f"\n   ⚠️  Low confidence. Top 3 predictions:")
+                    for emotion, conf in emotion_result['top_3']:
+                        print(f"      {emotion:12} {conf:5.1f}%")
+                    print(f"\n   💡 Tip: Try speaking with more emotion/expression!")
+                
                 print("=" * 60 + "\n")
                 
                 print("🎤 Listening again...")
